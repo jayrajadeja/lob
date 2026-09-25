@@ -83,6 +83,9 @@ func New(symbol string) *OrderBook {
 	}
 }
 
+// Symbol returns the instrument this book trades.
+func (b *OrderBook) Symbol() string { return b.symbol }
+
 // sideFor returns the resting side for an order's own side.
 func (b *OrderBook) sideFor(s order.Side) *side {
 	if s == order.Buy {

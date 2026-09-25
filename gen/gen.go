@@ -4,6 +4,7 @@
 package gen
 
 import (
+	"math"
 	"math/rand"
 
 	"github.com/jayrajadeja/lob/order"
@@ -45,10 +46,14 @@ type Generator struct {
 	live    []uint64
 }
 
-// New creates a generator. A MaxQty of 0 is treated as 1, and a Tick <= 0 as 1.
+// New creates a generator. A MaxQty of 0 is treated as 1, a MaxQty above
+// math.MaxInt64 is clamped (rng.Intn takes an int), and a Tick <= 0 as 1.
 func New(p Params) *Generator {
 	if p.MaxQty == 0 {
 		p.MaxQty = 1
+	}
+	if p.MaxQty > math.MaxInt64 {
+		p.MaxQty = math.MaxInt64
 	}
 	if p.Tick <= 0 {
 		p.Tick = 1

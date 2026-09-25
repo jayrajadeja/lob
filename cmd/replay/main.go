@@ -34,6 +34,7 @@ func main() {
 	})
 
 	var totalTrades int
+	var addErr error
 	start := time.Now()
 	for {
 		a, ok := g.Next()
@@ -45,6 +46,7 @@ func main() {
 			trades, err := b.Add(a.Order)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "add error: %v\n", err)
+				addErr = err
 				continue
 			}
 			totalTrades += len(trades)
@@ -55,7 +57,7 @@ func main() {
 	elapsed := time.Since(start)
 
 	bids, asks := b.Depth(5)
-	fmt.Printf("symbol=%s actions=%d trades=%d\n", *symbol, *orders, totalTrades)
+	fmt.Printf("symbol=%s actions=%d trades=%d\n", b.Symbol(), *orders, totalTrades)
 	fmt.Println("top bids (price x qty):")
 	for _, l := range bids {
 		fmt.Printf("  %d x %d\n", l.Price, l.Qty)
@@ -66,5 +68,8 @@ func main() {
 	}
 	if elapsed > 0 {
 		fmt.Printf("throughput=%.0f actions/sec\n", float64(*orders)/elapsed.Seconds())
+	}
+	if addErr != nil {
+		os.Exit(1)
 	}
 }
