@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/jayrajadeja/lob/order"
+	"github.com/jayrajadeja/lob/trade"
 )
 
 // Level is a snapshot of resting quantity at one price, used by Depth.
@@ -142,4 +143,64 @@ func (b *OrderBook) Depth(n int) (bids []Level, asks []Level) {
 		asks = append(asks, Level{Price: lvl.price, Qty: lvl.totalQty()})
 	}
 	return bids, asks
+}
+
+// crosses reports whether an incoming order at price can trade against a resting
+// order at makerPrice on the opposite side.
+func crosses(incoming order.Side, price, makerPrice int64) bool {
+	if incoming == order.Buy {
+		return price >= makerPrice
+	}
+	return price <= makerPrice
+}
+
+// Add matches an incoming limit order against the opposite side by price-time
+// priority, emits the resulting trades (at each maker's price), and rests any
+// remaining quantity. It returns a validation error for malformed orders.
+func (b *OrderBook) Add(o order.Order) ([]trade.Trade, error) {
+	if err := o.Validate(); err != nil {
+		return nil, err
+	}
+
+	var opposite *side
+	if o.Side == order.Buy {
+		opposite = b.asks
+	} else {
+		opposite = b.bids
+	}
+
+	var trades []trade.Trade
+	for o.Qty > 0 {
+		best := opposite.bestLevel()
+		if best == nil || !crosses(o.Side, o.Price, best.price) {
+			break
+		}
+		maker, ok := best.front()
+		if !ok {
+			opposite.dropEmpty(best.price)
+			continue
+		}
+		fill := maker.Qty
+		if o.Qty < fill {
+			fill = o.Qty
+		}
+		trades = append(trades, trade.Trade{
+			MakerID: maker.ID,
+			TakerID: o.ID,
+			Price:   maker.Price,
+			Qty:     fill,
+			TS:      o.TS,
+		})
+		best.reduceFront(fill)
+		if fill == maker.Qty {
+			delete(b.locs, maker.ID) // maker fully filled
+		}
+		o.Qty -= fill
+		opposite.dropEmpty(best.price)
+	}
+
+	if o.Qty > 0 {
+		b.rest(o)
+	}
+	return trades, nil
 }
