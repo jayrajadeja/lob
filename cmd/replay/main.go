@@ -4,8 +4,10 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -21,7 +23,17 @@ func main() {
 	tick := flag.Int64("tick", 1, "tick size")
 	maxQty := flag.Uint64("maxqty", 10, "max order quantity")
 	cancelProb := flag.Float64("cancelprob", 0.1, "cancel probability")
+	emit := flag.Bool("emit", false, "emit trades as a binary record stream to stdout (summary goes to stderr)")
 	flag.Parse()
+
+	// When emitting, stdout carries the raw trade stream, so the human-readable
+	// summary is routed to stderr.
+	sumOut := io.Writer(os.Stdout)
+	var bw *bufio.Writer
+	if *emit {
+		sumOut = os.Stderr
+		bw = bufio.NewWriter(os.Stdout)
+	}
 
 	b := book.New(*symbol)
 	g := gen.New(gen.Params{
@@ -35,6 +47,7 @@ func main() {
 
 	var totalTrades int
 	var addErr error
+	var emitErr error
 	start := time.Now()
 	for {
 		a, ok := g.Next()
@@ -50,26 +63,43 @@ func main() {
 				continue
 			}
 			totalTrades += len(trades)
+			if *emit {
+				if err := streamTrades(bw, trades); err != nil {
+					emitErr = err
+				}
+			}
 		case gen.CancelOrder:
 			b.Cancel(a.CancelID)
+		}
+		if emitErr != nil {
+			break
 		}
 	}
 	elapsed := time.Since(start)
 
-	bids, asks := b.Depth(5)
-	fmt.Printf("symbol=%s actions=%d trades=%d\n", b.Symbol(), *orders, totalTrades)
-	fmt.Println("top bids (price x qty):")
-	for _, l := range bids {
-		fmt.Printf("  %d x %d\n", l.Price, l.Qty)
+	if bw != nil {
+		if err := bw.Flush(); err != nil && emitErr == nil {
+			emitErr = err
+		}
 	}
-	fmt.Println("top asks (price x qty):")
+	if emitErr != nil {
+		fmt.Fprintf(os.Stderr, "emit error: %v\n", emitErr)
+	}
+
+	bids, asks := b.Depth(5)
+	fmt.Fprintf(sumOut, "symbol=%s actions=%d trades=%d\n", b.Symbol(), *orders, totalTrades)
+	fmt.Fprintln(sumOut, "top bids (price x qty):")
+	for _, l := range bids {
+		fmt.Fprintf(sumOut, "  %d x %d\n", l.Price, l.Qty)
+	}
+	fmt.Fprintln(sumOut, "top asks (price x qty):")
 	for _, l := range asks {
-		fmt.Printf("  %d x %d\n", l.Price, l.Qty)
+		fmt.Fprintf(sumOut, "  %d x %d\n", l.Price, l.Qty)
 	}
 	if elapsed > 0 {
-		fmt.Printf("throughput=%.0f actions/sec\n", float64(*orders)/elapsed.Seconds())
+		fmt.Fprintf(sumOut, "throughput=%.0f actions/sec\n", float64(*orders)/elapsed.Seconds())
 	}
-	if addErr != nil {
+	if addErr != nil || emitErr != nil {
 		os.Exit(1)
 	}
 }

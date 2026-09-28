@@ -42,6 +42,9 @@ func TestAddFullMatch(t *testing.T) {
 	if tr.MakerID != 1 || tr.TakerID != 2 || tr.Price != 100 || tr.Qty != 5 {
 		t.Errorf("trade = %+v, want maker 1 taker 2 price 100 qty 5", tr)
 	}
+	if tr.AggressorSide != order.Buy {
+		t.Errorf("aggressor side = %v, want Buy", tr.AggressorSide)
+	}
 	if _, ok := b.BestAsk(); ok {
 		t.Error("ask should be fully consumed")
 	}

@@ -188,11 +188,12 @@ func (b *OrderBook) Add(o order.Order) ([]trade.Trade, error) {
 			fill = o.Qty
 		}
 		trades = append(trades, trade.Trade{
-			MakerID: maker.ID,
-			TakerID: o.ID,
-			Price:   maker.Price,
-			Qty:     fill,
-			TS:      o.TS,
+			MakerID:       maker.ID,
+			TakerID:       o.ID,
+			Price:         maker.Price,
+			Qty:           fill,
+			TS:            o.TS,
+			AggressorSide: o.Side,
 		})
 		best.reduceFront(fill)
 		if fill == maker.Qty {
