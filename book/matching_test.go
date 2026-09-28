@@ -96,7 +96,7 @@ func TestAddSweepsMultipleLevelsTimePriority(t *testing.T) {
 
 func TestAddNoCrossWhenPriceTooLow(t *testing.T) {
 	b := New("TEST")
-	b.Add(limit(1, order.Sell, 105, 5))            // ask at 105
+	b.Add(limit(1, order.Sell, 105, 5))             // ask at 105
 	trades, _ := b.Add(limit(2, order.Buy, 104, 5)) // bid below ask -> no cross
 	if len(trades) != 0 {
 		t.Fatalf("trades = %+v, want none", trades)
